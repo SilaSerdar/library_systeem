@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  role      UserRole @default(CUSTOMER)
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Customer-specific
+  rentals   Rental[]
+  recommendations Recommendation[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  CUSTOMER
+  WORKER
+  ADMIN
+}
+
+model Book {
+  id              String   @id @default(cuid())
+  title           String
+  author          String
+  isbn            String?  @unique
+  description     String?
+  category        String?
+  publishedYear   Int?
+  totalCopies     Int      @default(1)
+  availableCopies Int      @default(1)
+  location        String   // Rafta bulunan konum (örn: "A-3-2" = A bölümü, 3. raf, 2. sıra)
+  imageUrl        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  rentals         Rental[]
+  recommendations Recommendation[]
+  purchaseSuggestions PurchaseSuggestion[]
+
+  @@map("books")
+}
+
+model Rental {
+  id          String      @id @default(cuid())
+  bookId      String
+  customerId  String
+  workerId    String?     // İşlemi yapan çalışan
+  status      RentalStatus @default(BORROWED)
+  borrowedAt  DateTime    @default(now())
+  dueDate     DateTime
+  returnedAt  DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  book        Book        @relation(fields: [bookId], references: [id])
+  customer    User        @relation(fields: [customerId], references: [id])
+
+  @@map("rentals")
+}
+
+enum RentalStatus {
+  BORROWED
+  RETURNED
+  OVERDUE
+}
+
+model Recommendation {
+  id          String   @id @default(cuid())
+  userId      String
+  bookId      String
+  score       Float    // AI öneri skoru (0-1)
+  reason      String?  // Öneri nedeni (AI tarafından oluşturulur)
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+  book        Book     @relation(fields: [bookId], references: [id])
+
+  @@unique([userId, bookId])
+  @@map("recommendations")
+}
+
+model PurchaseSuggestion {
+  id          String   @id @default(cuid())
+  bookTitle   String
+  author      String?
+  isbn        String?
+  reason      String   // Neden bu kitap alınmalı
+  suggestedBy String   // Worker ID
+  status      SuggestionStatus @default(PENDING)
+  priority    Int      @default(5) // 1-10 arası öncelik
+  bookId      String?  // Eğer kitap zaten alındıysa
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  book        Book?    @relation(fields: [bookId], references: [id])
+
+  @@map("purchase_suggestions")
+}
+
+enum SuggestionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PURCHASED
+}
+
